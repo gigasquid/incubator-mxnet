@@ -18,7 +18,8 @@
 (ns org.apache.clojure-mxnet.ndarray
   (:refer-clojure :exclude [* - + > >= < <= / cast concat flatten identity load max
                             min repeat reverse set sort take to-array empty shuffle])
-  (:require [org.apache.clojure-mxnet.base :as base]
+  (:require [dev.generator :as code-generator]
+            [org.apache.clojure-mxnet.base :as base]
             [org.apache.clojure-mxnet.context :as mx-context]
             [org.apache.clojure-mxnet.shape :as mx-shape]
             [org.apache.clojure-mxnet.util :as util]
@@ -26,9 +27,12 @@
             [t6.from-scala.core :refer [$] :as $])
   (:import (org.apache.mxnet NDArray)))
 
+;; macro that generates the code file from the reflection info in scala classes
+(code-generator/gen-ndarray-file)
 
 ;; loads the generated functions into the namespace
-(do (clojure.core/load "gen/ndarray"))
+(do
+  (clojure.core/load "gen/ndarray"))
 
 (defn ->vec
   "Converts a nd-array to a vector (one dimensional)"

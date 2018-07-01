@@ -313,6 +313,12 @@
 (defn generate-ndarray-file []
   (write-to-file all-ndarray-functions ndarray-gen-ns  "src/org/apache/clojure_mxnet/gen/ndarray.clj"))
 
+(defmacro gen-ndarray-file []
+  `(generate-ndarray-file))
+
+(defmacro gen-symbol-file []
+  `(generate-symbol-file))
+
 (defn -main [& args]
   (do
     (println "Generating the core ndarray api from the Scala classes")

@@ -19,7 +19,8 @@
   (:refer-clojure :exclude [* - + > >= < <= / cast concat identity flatten load max
                             min repeat reverse set sort take to-array empty sin
                             get apply shuffle])
-  (:require [org.apache.clojure-mxnet.base :as base]
+  (:require [dev.generator :as code-generator]
+            [org.apache.clojure-mxnet.base :as base]
             [org.apache.clojure-mxnet.context :as mx-context]
             [org.apache.clojure-mxnet.executor :as ex]
             [org.apache.clojure-mxnet.shape :as mx-shape]
@@ -28,6 +29,8 @@
             [org.apache.clojure-mxnet.ndarray :as ndarray])
   (:import (org.apache.mxnet Symbol)))
 
+;; macro that generates the code file from the reflection info in scala classes
+(code-generator/gen-symbol-file)
 
 ;; loads the generated functions into the namespace
 (do (clojure.core/load "gen/symbol"))
