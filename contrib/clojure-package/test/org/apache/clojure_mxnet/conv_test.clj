@@ -24,7 +24,8 @@
             [org.apache.clojure-mxnet.module :as m]
             [org.apache.clojure-mxnet.optimizer :as optimizer]
             [org.apache.clojure-mxnet.symbol :as sym]
-            [clojure.reflect :as r]))
+            [org.apache.clojure-mxnet.feed-forward :as feed-forward]
+            [org.apache.clojure-mxnet.ndarray :as ndarray]))
 
 (def data-dir "data/")
 (def batch-size 100)
@@ -82,7 +83,59 @@
       (println "Score" score)
       (is (< 0.92 (last score))))))
 
-(comment
+(deftest test-feed-forward-conv []
+  (let [mod (feed-forward/build (get-symbol) {:train-data train-data
+                                              :eval-data test-data
+                                              :num-epoch num-epoch
+                                              :optimizer (optimizer/sgd {:learning-rate 0.1
+                                                                         :momentum 0.9
+                                                                         :wd 0.0001})})
+        probs (feed-forward/predict mod test-data)
+        prob (first probs)
+        labels (mx-io/reduce-batches test-data
+                                     (fn [r batch] (conj r (-> (mx-io/batch-label batch)
+                                                               (first)
+                                                               (ndarray/copy))))
+                                     [])
+        y (ndarray/concatenate labels)
+        py (ndarray/argmax-channel prob)]
+    (is (= (ndarray/shape-vec y) (ndarray/shape-vec py)))
+    (let [scores (mapv (fn [label-elem pred-elem]
+                         (if (= label-elem pred-elem) 1 0))
+                       (ndarray/->vec y)
+                       (ndarray/->vec py))
+          accuracy (float (/ (apply + scores) (count (ndarray/->vec py))))]
+      (println "Final accuracy of feed-forward " accuracy)
+      (is (> accuracy 0.92)))))
 
-  (require '[clojure.reflect :as r])
-  (r/reflect train-data))
+
+(defn test-save-load-feed-forward []
+  (let [mod (-> (feed-forward/setup (get-symbol) {:eval-data test-data
+                                                  :num-epoch num-epoch
+                                                  :optimizer (optimizer/sgd {:learning-rate 0.1
+                                                                             :momentum 0.9
+                                                                             :wd 0.0001})})
+                (feed-forward/fit train-data))
+        _ (feed-forward/save mod "test-feed-forward")
+        mod2 (feed-forward/load "test-feed-forward" 0 {:num-epoch num-epoch
+                                                       :optimizer (optimizer/sgd {:learning-rate 0.1
+                                                                                  :momentum 0.9
+                                                                                  :wd 0.0001})})
+        probs (feed-forward/predict mod test-data)
+        prob (first probs)
+        labels (mx-io/reduce-batches test-data
+                                     (fn [r batch] (conj r (-> (mx-io/batch-label batch)
+                                                               (first)
+                                                               (ndarray/copy))))
+                                     [])
+        y (ndarray/concatenate labels)
+        py (ndarray/argmax-channel prob)]
+    (is (= (ndarray/shape-vec y) (ndarray/shape-vec py)))
+    (let [scores (mapv (fn [label-elem pred-elem]
+                         (if (= label-elem pred-elem) 1 0))
+                       (ndarray/->vec y)
+                       (ndarray/->vec py))
+          accuracy (float (/ (apply + scores) (count (ndarray/->vec py))))]
+      (println "Final accuracy of feed-forward " accuracy)
+      (is (> accuracy 0.92))))
+  )
