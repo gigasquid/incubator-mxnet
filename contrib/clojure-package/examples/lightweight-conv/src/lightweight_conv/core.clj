@@ -23,18 +23,21 @@
 (defonce train-data (mx-io/mnist-iter {:image (str data-dir "train-images-idx3-ubyte")
                                        :label (str data-dir "train-labels-idx1-ubyte")
                                        :label-name "softmax_label"
-                                       :input-shape [784]
+                                       :data-shape [1 28 28]
+                                       :label-shape [1 1 10]
                                        :batch-size batch-size
                                        :shuffle true
-                                       :flat true
+                                       :flat false
                                        :silent false
                                        :seed 10}))
 
 (defonce test-data (mx-io/mnist-iter {:image (str data-dir "t10k-images-idx3-ubyte")
                                       :label (str data-dir "t10k-labels-idx1-ubyte")
-                                      :input-shape [784]
+                                      :data-shape [1 28 28]
                                       :batch-size batch-size
-                                      :flat true :silent false}))
+                                      :flat false
+                                      :silent false}))
+
 
 ;; Gated Linear Unit - Dauphin et al. 2017
 ;; implementation from https://github.com/awslabs/sockeye/blob/master/sockeye/convolution.py#L165
@@ -44,13 +47,51 @@
         gate-a (sym/get gates 0)
         gate-b (sym/get gates 1)
         gate-b-act (sym/activation {:data gate-b :act-type "sigmoid"})]
-        (sym/broadcast-mul [gate-a gate-b-act])))
+    (sym/broadcast-mul [gate-a gate-b-act])))
+
+;; Depthwise Separable Convolution
+;; reference https://towardsdatascience.com/types-of-convolutions-in-deep-learning-717013397f4d
+;; implementation https://github.com/bruinxiong/Xception.mxnet/blob/master/symbol_xception.py
+(defn depthwise-separable-conv
+  [{:keys [data num-in-channel num-out-channel]}]
+  (let [channels (sym/split {:data data :axis 1 :num-outputs num-in-channel})
+        depthwise-outs (into [] (for [i (range num-in-channel)]
+                                  (sym/convolution {:data (sym/get channels i)
+                                                    :kernel [3 3]
+                                                    :stride [1 1]
+                                                    :pad [0 0]
+                                                    :num-filter 1})))
+        depthwise-out (sym/concat depthwise-outs)]
+    ;; pointwise convolution
+    (sym/convolution {:data depthwise-out
+                      :kernel [1 1]
+                      :stride [1 1]
+                      :pad [0 0]
+                      :num-filter num-out-channel}))
+  )
 
 (defn get-symbol []
   (as-> (sym/variable "data") data
+
+    (depthwise-separable-conv {:data data :num-in-channel 28 :num-out-channel 28})
+    #_(sym/convolution "conv1" {:data data :kernel [3 3] :num-filter 32 :stride [2 2]})
+    (sym/batch-norm "bn1" {:data data})
+    (sym/activation "relu1" {:data data :act-type "relu"})
+    (sym/pooling "mp1" {:data data :kernel [2 2] :pool-type "max" :stride [2 2]})
+    (sym/convolution "conv2" {:data data :kernel [3 3] :num-filter 32 :stride [2 2]})
+    (sym/batch-norm "bn2" {:data data})
+    (sym/activation "relu2" {:data data :act-type "relu"})
+    (sym/pooling "mp2" {:data data :kernel [2 2] :pool-type "max" :stride [2 2]})
+
+    (sym/flatten "fl" {:data data})
+    (sym/fully-connected "fc2" {:data data :num-hidden 10})
+    (sym/softmax-output "softmax" {:data data})))
+
+#_(defn get-symbol []
+  (as-> (sym/variable "data") data
     (sym/fully-connected "fc1" {:data data :num-hidden 128})
-    (glu-activation data)
-    #_(sym/activation "relu1" {:data data :act-type "relu"})
+    #(glu-activation data)
+    (sym/activation "relu1" {:data data :act-type "relu"})
     (sym/fully-connected "fc2" {:data data :num-hidden 64})
     (sym/activation "relu2" {:data data :act-type "relu"})
     (sym/fully-connected "fc3" {:data data :num-hidden 10})
