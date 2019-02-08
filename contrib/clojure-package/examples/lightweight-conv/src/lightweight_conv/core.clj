@@ -73,7 +73,7 @@
 (defn get-symbol []
   (as-> (sym/variable "data") data
 
-    (depthwise-separable-conv {:data data :num-in-channel 28 :num-out-channel 28})
+    (depthwise-separable-conv {:data data :num-in-channel 1 :num-out-channel 1})
     #_(sym/convolution "conv1" {:data data :kernel [3 3] :num-filter 32 :stride [2 2]})
     (sym/batch-norm "bn1" {:data data})
     (sym/activation "relu1" {:data data :act-type "relu"})
