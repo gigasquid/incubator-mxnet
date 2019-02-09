@@ -87,7 +87,7 @@
   (as-> (sym/variable "data") data
 
     (sym/convolution "conv1" {:data data :kernel [3 3] :num-filter 32 :stride [2 2]})
-    (depthwise-separable-conv {:data data :num-in-channels 16 :num-out-channels 32
+    (depthwise-separable-conv {:data data :num-in-channels 32 :num-out-channels 32
                                :kernel [3 3] :pad [1 1] :stride [1 1]})
     (sym/batch-norm "bn1" {:data data})
     (sym/activation "relu1" {:data data :act-type "relu"})
