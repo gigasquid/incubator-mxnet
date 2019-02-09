@@ -57,12 +57,12 @@
   [{:keys [data num-in-channels num-out-channels kernel pad stride]}]
   ;; can this be dynamic?
   (let [channels (sym/split {:data data :axis 1 :num-outputs num-in-channels})
-        depthwise-outs (into [] (for [i (range num-in-channels)]
-                                  (sym/convolution {:data (sym/get channels i)
-                                                    :kernel kernel
-                                                    :stride stride
-                                                    :pad pad
-                                                    :num-filter 1})))
+        depthwise-outs (into [] (doall (for [i (range num-in-channels)]
+                                   (sym/convolution {:data (sym/get channels i)
+                                                     :kernel kernel
+                                                     :stride stride
+                                                     :pad pad
+                                                     :num-filter 1}))))
         depthwise-out (sym/concat depthwise-outs)]
     ;; pointwise convolution
     (sym/convolution {:data depthwise-out
@@ -70,7 +70,7 @@
                       :stride [1 1]
                       :pad [0 0]
                       :num-filter num-out-channels}))
-  data
+  #_data
   )
 
 
@@ -81,9 +81,9 @@
 (defn get-symbol []
   (as-> (sym/variable "data") data
 
-    (sym/convolution "conv1" {:data data :kernel [3 3] :num-filter 32 :stride [2 2]})
-    (depthwise-separable-conv {:data data :num-in-channels 32 :num-out-channels 32
-                               :kernel [3 3] :pad [1 1] :stride [1 1]})
+    #_(sym/convolution "conv1" {:data data :kernel [3 3] :num-filter 32 :stride [2 2]})
+    (depthwise-separable-conv {:data data :num-in-channels 1 :num-out-channels 32
+                               :kernel [3 3] :pad [3 3] :stride [2 2]})
     (sym/batch-norm "bn1" {:data data})
     (sym/activation "relu1" {:data data :act-type "relu"})
     (sym/pooling "mp1" {:data data :kernel [2 2] :pool-type "max" :stride [2 2]})
