@@ -54,7 +54,7 @@
 ;; implementation https://github.com/bruinxiong/Xception.mxnet/blob/master/symbol_xception.py
 ;;https://fairseq.readthedocs.io/en/latest/getting_started.html#training-a-new-model
 (defn depthwise-separable-conv
-  [{:keys [data num-in-channels num-out-channels kernel pad stride]}]
+  [{:keys [data num-in-channels num-out-channels kernel pad stride lightweight?]}]
   ;; can this be dynamic?
   (let [channels (sym/split {:data data :axis 1 :num-outputs num-in-channels})
         depthwise-outs (into [] (doall (for [i (range num-in-channels)]
@@ -64,14 +64,18 @@
                                                      :pad pad
                                                      :num-filter 1}))))
         depthwise-out (sym/concat depthwise-outs)]
+    (println "Carin light-weight? " lightweight?)
     ;; pointwise convolution
-    (sym/convolution {:data depthwise-out
+    (sym/convolution {:data (if lightweight?
+                              (sym/softmax {:data depthwise-out})
+                              depthwise-out)
                       :kernel [1 1]
                       :stride [1 1]
                       :pad [0 0]
-                      :num-filter num-out-channels}))
-  #_data
-  )
+                      :num-filter num-out-channels})))
+;;https://arxiv.org/pdf/1901.10430.pdf
+(defn lightweight-conv [{:keys [data num-in-channels num-out-channels kernel pad stride] :as params}]
+  (depthwise-separable-conv (merge params {:lightweight? true})))
 
 
 
@@ -82,8 +86,8 @@
   (as-> (sym/variable "data") data
 
     #_(sym/convolution "conv1" {:data data :kernel [3 3] :num-filter 32 :stride [2 2]})
-    (depthwise-separable-conv {:data data :num-in-channels 1 :num-out-channels 32
-                               :kernel [3 3] :pad [3 3] :stride [2 2]})
+    (lightweight-conv {:data data :num-in-channels 1 :num-out-channels 32
+                       :kernel [3 3] :pad [3 3] :stride [2 2]})
     (sym/batch-norm "bn1" {:data data})
     (sym/activation "relu1" {:data data :act-type "relu"})
     (sym/pooling "mp1" {:data data :kernel [2 2] :pool-type "max" :stride [2 2]})
