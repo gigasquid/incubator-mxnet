@@ -9,8 +9,7 @@
             [org.apache.clojure-mxnet.optimizer :as optimizer]
             [org.apache.clojure-mxnet.symbol :as sym]
             [org.apache.clojure-mxnet.util :as util]
-            [org.apache.clojure-mxnet.ndarray :as ndarray]
-            [lightweight-conv.data-helper :as data-helper]))
+            [org.apache.clojure-mxnet.ndarray :as ndarray]))
 
 (def data-dir "data/")
 (def batch-size 10)
@@ -56,19 +55,15 @@
 ;;https://fairseq.readthedocs.io/en/latest/getting_started.html#training-a-new-model
 (defn depthwise-separable-conv
   [{:keys [data num-in-channels num-out-channels kernel pad stride]}]
-  (println "Carin num-in-channels" num-in-channels " num-out-channels " num-out-channels)
   ;; can this be dynamic?
   (let [channels (sym/split {:data data :axis 1 :num-outputs num-in-channels})
-        _ (println "Carin channels " channels)
         depthwise-outs (into [] (for [i (range num-in-channels)]
                                   (sym/convolution {:data (sym/get channels i)
                                                     :kernel kernel
                                                     :stride stride
                                                     :pad pad
                                                     :num-filter 1})))
-        _ (println "Carin deptwise outs" depthwise-outs)
         depthwise-out (sym/concat depthwise-outs)]
-    (println "Carin depthwise out " depthwise-out)
     ;; pointwise convolution
     (sym/convolution {:data depthwise-out
                       :kernel [1 1]
@@ -102,16 +97,6 @@
     (sym/fully-connected "fc2" {:data data :num-hidden 10})
     (sym/softmax-output "softmax" {:data data})))
 
-#_(defn get-symbol []
-  (as-> (sym/variable "data") data
-    (sym/fully-connected "fc1" {:data data :num-hidden 128})
-    #(glu-activation data)
-    (sym/activation "relu1" {:data data :act-type "relu"})
-    (sym/fully-connected "fc2" {:data data :num-hidden 64})
-    (sym/activation "relu2" {:data data :act-type "relu"})
-    (sym/fully-connected "fc3" {:data data :num-hidden 10})
-    (sym/softmax-output "softmax" {:data data})))
-
 
 (defn train [num-epoch]
   (let [devs [(context/cpu 0)]
@@ -126,58 +111,8 @@
     (let [score (m/score mod {:eval-data test-data :eval-metric (eval-metric/accuracy)})]
       (println "High level predict score is " score))))
 
-(defn shuffle-data [test-num {:keys [data label sentence-count sentence-size vocab-size embedding-size pretrained-embedding]}]
-  (println "Shuffling the data and splitting into training and test sets")
-  (println {:sentence-count sentence-count
-            :sentence-size sentence-size
-            :vocab-size vocab-size
-            :embedding-size embedding-size
-            :pretrained-embedding pretrained-embedding})
-  (let [shuffled (shuffle (map #(vector %1 %2) data label))
-        train-num (- (count shuffled) test-num)
-        training (into [] (take train-num shuffled))
-        test (into [] (drop train-num shuffled))
-        ;; has to be channel x y
-        train-data-shape (if pretrained-embedding
-                           [train-num 1 sentence-size embedding-size]
-                           [train-num 1 sentence-size])
-        ;; has to be channel x y
-        test-data-shape (if pretrained-embedding
-                           [test-num 1 sentence-size embedding-size]
-                           [test-num 1 sentence-size])]
-    {:training {:data  (ndarray/array (into [] (flatten (mapv first training)))
-                                      train-data-shape)
-                :label (ndarray/array (into [] (flatten (mapv last  training)))
-                                      [train-num])}
-     :test {:data  (ndarray/array (into [] (flatten (mapv first test)))
-                                  test-data-shape)
-            :label (ndarray/array (into [] (flatten (mapv last  test)))
-                                  [test-num])}}))
-
 
 (comment
-  (def mr-dataset-path "data/mr-data") ;; the MR polarity dataset path
-  (def max-examples 100)
-  (def pretrained-embedding :glove)
-  (def embedding-size 50)
-  (def test-size 10)
-
-  (def ms-dataset (data-helper/load-ms-with-embeddings mr-dataset-path max-examples embedding-size {:pretrained-embedding pretrained-embedding}))
-  (def sentence-size (:sentence-size ms-dataset))
-  (def vocab-size (:vocab-size ms-dataset))
-  (def shuffled (shuffle-data test-size ms-dataset))
-  (def word-train-data  (mx-io/ndarray-iter [(get-in shuffled [:training :data])]
-                                            {:label [(get-in shuffled [:training :label])]
-                                             :label-name "softmax_label"
-                                             :data-batch-size batch-size
-                                             :last-batch-handle "pad"}))
-  (def word-test-data (mx-io/ndarray-iter [(get-in shuffled [:test :data])]
-                                      {:label [(get-in  shuffled [:test :label])]
-                                       :label-name "softmax_label"
-                                       :data-batch-size batch-size
-                                       :last-batch-handle "pad"}))
-
- (mx-io/provide-data word-train-data)
 
   (train 1)
 
