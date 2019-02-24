@@ -50,6 +50,7 @@ private[mxnet] class LibInfo {
   @native def mxNDArrayWaitAll(): Int
   @native def mxNDArrayWaitToRead(handle: NDArrayHandle): Int
   @native def mxListFunctions(functions: ListBuffer[FunctionHandle]): Int
+  @native def mxLibInfoFeatures(features: ListBuffer[String]): Int
   @native def mxFuncDescribe(handle: FunctionHandle,
                              nUsedVars: MXUintRef,
                              nScalars: MXUintRef,

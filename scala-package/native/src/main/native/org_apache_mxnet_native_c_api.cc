@@ -123,6 +123,30 @@ JNIEXPORT jint JNICALL Java_org_apache_mxnet_LibInfo_mxListFunctions
   return ret;
 }
 
+JNIEXPORT jint JNICALL Java_org_apache_mxnet_LibInfo_mxLibInfoFeatures
+  (JNIEnv *env, jobject obj, jobject features) {
+
+  jclass longCls = env->FindClass("java/lang/Long");
+  jmethodID longConst = env->GetMethodID(longCls, "<init>", "(J)V");
+
+
+  // scala.collection.mutable.ListBuffer append method
+  jclass listClass = env->FindClass("scala/collection/mutable/ListBuffer");
+  jmethodID listAppend = env->GetMethodID(listClass,
+    "$plus$eq", "(Ljava/lang/Object;)Lscala/collection/mutable/ListBuffer;");
+
+  // Get feature list
+  const struct LibFeature **libFeatures;
+  mx_uint size;
+  int ret = MXLibInfoFeatures(&libFeatures, &size);
+  for (size_t i = 0; i < size; ++i) {
+    env->CallObjectMethod(features, listAppend,
+                          env->NewObject(longCls, longConst, env->NewStringUTF(libFeatures[i]._name)));
+  }
+  return ret;
+}
+
+
 JNIEXPORT jint JNICALL Java_org_apache_mxnet_LibInfo_mxFuncDescribe
   (JNIEnv *env, jobject obj, jlong funcPtr, jobject nUsedVars,
     jobject nScalars, jobject nMutateVars, jobject typeMask) {

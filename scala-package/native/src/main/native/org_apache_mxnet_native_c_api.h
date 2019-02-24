@@ -97,6 +97,14 @@ JNIEXPORT jint JNICALL Java_org_apache_mxnet_LibInfo_mxListFunctions
 
 /*
  * Class:     org_apache_mxnet_LibInfo
+ * Method:    mxLibInfoFeatures
+ * Signature: (Lscala/collection/mutable/ListBuffer;)I
+ */
+JNIEXPORT jint JNICALL Java_org_apache_mxnet_LibInfo_mxLibInfoFeatures
+  (JNIEnv *, jobject, jobject);
+
+/*
+ * Class:     org_apache_mxnet_LibInfo
  * Method:    mxFuncDescribe
  * Signature: (JLorg/apache/mxnet/Base/RefInt;Lorg/apache/mxnet/Base/RefInt;Lorg/apache/mxnet/Base/RefInt;Lorg/apache/mxnet/Base/RefInt;)I
  */

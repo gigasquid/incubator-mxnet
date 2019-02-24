@@ -31,6 +31,9 @@ private[mxnet] object Base {
   class RefFloat(val value: Float = 0)
   class RefString(val value: String = null)
 
+  class RefFeature(val name: String = null, val enabled: Boolean = false)
+
+  type LibFeature = RefFeature
   type MXUint = Int
   type MXFloat = Float
   type CPtrAddress = Long
