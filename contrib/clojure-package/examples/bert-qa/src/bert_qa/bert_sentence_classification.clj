@@ -145,16 +145,8 @@
 
    (def train-count (count data-train-raw)) ;=> 389
 
-   ;; now create the module
-
    (def lr 5e-6)
    
-   (def model (-> (m/module model-sym {:contexts devs
-                                       :data-names ["data0" "data1" "data2"]})
-                  (m/bind {:data-shapes input-descs :label-shapes label-descs})
-                  (m/init-params {:arg-params arg-params :aux-params aux-params
-                                  :allow-missing true})
-                  (m/init-optimizer {:optimizer (optimizer/adam {:learning-rate lr :episilon 1e-9})})))
 
    (def metric (eval-metric/accuracy))
    (def num-epoch 1)
@@ -225,15 +217,16 @@
                                  :data-names ["data0" "data1" "data2"]}))
  )
 
+ (+ 1 1)
 
  (m/fit model {:train-data train-data  :num-epoch 3
                :fit-params (m/fit-params {:allow-missing true
                                           :arg-params arg-params :aux-params aux-params
                                           :optimizer (optimizer/adam {:learning-rate lr :episilon 1e-9})
-                                          :batch-end-callback (callback/speedometer batch-size )})})
+                                          :batch-end-callback (callback/speedometer batch-size 1)})})
 
 
 
- (m/save-checkpoint model {:prefix "fine-tune-sentence-bert" :epoch 0 :save-opt-states true})
+ (m/save-checkpoint model {:prefix "fine-tune-sentence-bert" :epoch 3})
 
 )
