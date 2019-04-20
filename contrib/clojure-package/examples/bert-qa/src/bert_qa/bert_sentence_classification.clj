@@ -226,37 +226,14 @@
  )
 
 
-#_ (-> model
-     (m/forward {:data (mx-io/batch-data batch)})
-     (m/update-metric metric (mx-io/batch-label batch))
-     (m/backward)
-     (m/update))
-
- (m/fit model {:train-data train-data  :num-epoch num-epoch
+ (m/fit model {:train-data train-data  :num-epoch 3
                :fit-params (m/fit-params {:allow-missing true
                                           :arg-params arg-params :aux-params aux-params
                                           :optimizer (optimizer/adam {:learning-rate lr :episilon 1e-9})
-                                          :batch-end-callback (callback/speedometer batch-size 1)})})
+                                          :batch-end-callback (callback/speedometer batch-size )})})
 
 
 
- #_(m/save-checkpoint model {:prefix "fine-tune-sentence-bert" :epoch 0 :save-opt-states true})
+ (m/save-checkpoint model {:prefix "fine-tune-sentence-bert" :epoch 0 :save-opt-states true})
 
- (def clojure-test-data (pre-processing (context/default-context) idx->token token->idx
-                                        ["Rich Hickey is the creator of the Clojure language."
-                                         "The Clojure language was Rich Hickey." "1"]))
-
- 
-(-> model
-    (m/forward {:data (:input-batch sample-data)})
-    (m/outputs)
-    (ffirst)
-    (ndarray/->vec)
-    (zipmap [:equivalent :not-equivalent]))
-
-(-> model
-    (m/forward {:data (:input-batch clojure-test-data)})
-    (m/outputs)
-    (ffirst)
-    (ndarray/->vec)
-    (zipmap [:equivalent :not-equivalent])))
+)
