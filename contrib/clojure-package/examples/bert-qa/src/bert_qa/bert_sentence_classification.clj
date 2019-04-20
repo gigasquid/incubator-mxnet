@@ -13,6 +13,8 @@
             [org.apache.clojure-mxnet.infer :as infer]
             [org.apache.clojure-mxnet.eval-metric :as eval-metric]
             [org.apache.clojure-mxnet.optimizer :as optimizer]
+            [org.apache.clojure-mxnet.io :as mx-io]
+            [org.apache.clojure-mxnet.callback :as callback]
             [clojure.pprint :as pprint]
             [clojure-csv.core :as csv]
             [bert-qa.infer :as bert-infer]))
@@ -160,18 +162,14 @@
                               data-train-raw))
    (def batch-size 32)
 
-   )
-
-
-
- (def total-number (count processed-datas)) ;=> 389
- (def train-num (int (* 0.8 total-number)))
- (def train-eval-sets (partition-all train-num processed-datas))
- (map count train-eval-sets) ;=> (311 78)
- (def train-processed-datas (first train-eval-sets))
- (def eval-processed-datas (second train-eval-sets))
- (def train-num (count train-processed-datas))
- (def eval-num (count eval-processed-datas))
+   (def train-num (count processed-datas)) ;=> 389
+; (def train-num (int (* 0.8 total-number)))
+; (def train-eval-sets (partition-all train-num processed-datas))
+; (map count train-eval-sets) ;=> (311 78)
+; (def train-processed-datas (first train-eval-sets))
+; (def eval-processed-datas (second train-eval-sets))
+; (def train-num (count train-processed-datas))
+; (def eval-num (count eval-processed-datas))
 
  ;;; to do split up into training/ eval
 
@@ -209,6 +207,7 @@
                                    :dtype dtype/FLOAT32
                                    :layout layout/N}))
 
+ ;;; to do put ctx in
  (def train-data (mx-io/ndarray-iter {data-desc0 (ndarray/array data0s [train-num seq-length])
                                       data-desc1 (ndarray/array data1s [train-num seq-length])
                                       data-desc2 (ndarray/array data2s [train-num])}
@@ -222,16 +221,14 @@
  (mx-io/batch-data batch)
  (mx-io/batch-label batch)
 
-    (def model (-> (m/module model-sym {:contexts devs
-                                       :data-names ["data0" "data1" "data2"]})
-                   (m/bind {:data-shapes (mx-io/provide-data-desc train-data)
-                            :label-shapes (mx-io/provide-label-desc train-data)})
-                  (m/init-params {:arg-params arg-params :aux-params aux-params
-                                  :allow-missing true})
-                  (m/init-optimizer {:optimizer (optimizer/adam {:learning-rate lr :episilon 1e-9})})))
+ (def model (m/module model-sym {:contexts devs
+                                 :data-names ["data0" "data1" "data2"]}))
+ )
 
- (-> model
+
+#_ (-> model
      (m/forward {:data (mx-io/batch-data batch)})
+     (m/update-metric metric (mx-io/batch-label batch))
      (m/backward)
      (m/update))
 
@@ -239,7 +236,7 @@
                :fit-params (m/fit-params {:allow-missing true
                                           :arg-params arg-params :aux-params aux-params
                                           :optimizer (optimizer/adam {:learning-rate lr :episilon 1e-9})
-                                          :batch-end-callback (callback/speedometer batch-size batch-size)})})
+                                          :batch-end-callback (callback/speedometer batch-size 1)})})
 
 
 
@@ -262,4 +259,4 @@
     (m/outputs)
     (ffirst)
     (ndarray/->vec)
-    (zipmap [:equivalent :not-equivalent]))) ()
+    (zipmap [:equivalent :not-equivalent])))
