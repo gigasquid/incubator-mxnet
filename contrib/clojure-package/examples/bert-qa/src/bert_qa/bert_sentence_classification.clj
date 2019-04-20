@@ -44,12 +44,12 @@
           tokens (bert-infer/pad token-1 "[PAD]" seq-length)
         ;;; pre-processing - token to index translation
           indexes (bert-infer/tokens->idxs token->idx tokens)]
-    {:input-batch [(ndarray/array indexes [1 seq-length] {:context ctx})
-                   (ndarray/array token-types [1 seq-length] {:context ctx})
-                   (ndarray/array [valid-length] [1] {:context ctx})]
+    {:input-batch [indexes
+                   token-types
+                   [valid-length]]
      :label (if (= "0" label)
-              (ndarray/array [1 0] [2] {:ctx ctx})
-              (ndarray/array [0 1] [2] {:ctx ctx}))
+              [0]
+              [1])
      :tokens tokens
      :train-item train-item}))
 
@@ -158,22 +158,89 @@
    (def num-epoch 1)
    (def processed-datas (mapv #(pre-processing (context/default-context) idx->token token->idx %)
                               data-train-raw))
-   (def batch-size 1)
+   (def batch-size 32)
+
    )
 
-    (doseq [epoch-num (range num-epoch)]
-      (let [counter (atom 0)]
-        (doseq [batch-data (shuffle processed-datas)]
-          (-> model
-              (m/forward {:data (:input-batch batch-data)})
-              (m/update-metric metric [(:label batch-data)])
-              (m/backward)
-              (m/update))
-          (swap! counter inc)
-          (when (and (pos? @counter)
-                     (zero? (mod @counter batch-size)))
-           (println "Working on " @counter " of " train-count " acc: " (eval-metric/get metric))))
-       (println "result for epoch " epoch-num " is " (eval-metric/get-and-reset metric))))
+
+
+ (def total-number (count processed-datas)) ;=> 389
+ (def train-num (int (* 0.8 total-number)))
+ (def train-eval-sets (partition-all train-num processed-datas))
+ (map count train-eval-sets) ;=> (311 78)
+ (def train-processed-datas (first train-eval-sets))
+ (def eval-processed-datas (second train-eval-sets))
+ (def train-num (count train-processed-datas))
+ (def eval-num (count eval-processed-datas))
+
+ ;;; to do split up into training/ eval
+
+  (def data0s (->> (mapv #(nth (:input-batch %) 0) processed-datas)
+                  (flatten)
+                  (into [])))
+ (def data1s (->> (mapv #(nth (:input-batch %) 1) processed-datas)
+                  (flatten)
+                  (into [])))
+ (def data2s (->> (mapv #(nth (:input-batch %) 2) processed-datas)
+                  (flatten)
+                  (into [])))
+ (def labels (->> (mapv :label processed-datas)
+                  (flatten)
+                  (into [])))
+
+
+
+
+ (def data-desc0 (mx-io/data-desc {:name "data0"
+                                   :shape [train-num seq-length]
+                                   :dtype dtype/FLOAT32
+                                   :layout layout/NT}))
+
+ (def data-desc1 (mx-io/data-desc {:name "data1"
+                                   :shape [train-num seq-length]
+                                   :dtype dtype/FLOAT32
+                                   :layout layout/NT}))
+ (def data-desc2 (mx-io/data-desc {:name "data2"
+                                   :shape [train-num]
+                                   :dtype dtype/FLOAT32
+                                   :layout layout/N}))
+ (def label-desc (mx-io/data-desc {:name "softmax_label"
+                                   :shape [train-num]
+                                   :dtype dtype/FLOAT32
+                                   :layout layout/N}))
+
+ (def train-data (mx-io/ndarray-iter {data-desc0 (ndarray/array data0s [train-num seq-length])
+                                      data-desc1 (ndarray/array data1s [train-num seq-length])
+                                      data-desc2 (ndarray/array data2s [train-num])}
+                                     {:label {label-desc (ndarray/array labels [train-num])}
+                                      :data-batch-size batch-size
+                                      :last-batch-handle "pad"}))
+ (mx-io/provide-data-desc train-data)
+ (mx-io/provide-label-desc train-data)
+
+ (def batch (mx-io/next train-data))
+ (mx-io/batch-data batch)
+ (mx-io/batch-label batch)
+
+    (def model (-> (m/module model-sym {:contexts devs
+                                       :data-names ["data0" "data1" "data2"]})
+                   (m/bind {:data-shapes (mx-io/provide-data-desc train-data)
+                            :label-shapes (mx-io/provide-label-desc train-data)})
+                  (m/init-params {:arg-params arg-params :aux-params aux-params
+                                  :allow-missing true})
+                  (m/init-optimizer {:optimizer (optimizer/adam {:learning-rate lr :episilon 1e-9})})))
+
+ (-> model
+     (m/forward {:data (mx-io/batch-data batch)})
+     (m/backward)
+     (m/update))
+
+ (m/fit model {:train-data train-data  :num-epoch num-epoch
+               :fit-params (m/fit-params {:allow-missing true
+                                          :arg-params arg-params :aux-params aux-params
+                                          :optimizer (optimizer/adam {:learning-rate lr :episilon 1e-9})
+                                          :batch-end-callback (callback/speedometer batch-size batch-size)})})
+
 
 
  #_(m/save-checkpoint model {:prefix "fine-tune-sentence-bert" :epoch 0 :save-opt-states true})
@@ -181,6 +248,8 @@
  (def clojure-test-data (pre-processing (context/default-context) idx->token token->idx
                                         ["Rich Hickey is the creator of the Clojure language."
                                          "The Clojure language was Rich Hickey." "1"]))
+
+ 
 (-> model
     (m/forward {:data (:input-batch sample-data)})
     (m/outputs)
@@ -193,8 +262,4 @@
     (m/outputs)
     (ffirst)
     (ndarray/->vec)
-    (zipmap [:equivalent :not-equivalent]))
-
-
-
- )
+    (zipmap [:equivalent :not-equivalent]))) ()
