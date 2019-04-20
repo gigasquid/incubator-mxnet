@@ -57,9 +57,9 @@
   "msymbol: the pretrained network symbol
     arg-params: the argument parameters of the pretrained model
     num-classes: the number of classes for the fine-tune datasets"
-  [msymbol num-classes]
+  [msymbol {:keys [num-classes dropout]}]
   (as-> msymbol data
-    (sym/flatten "flatten-finetune" {:data data})
+    (sym/dropout {:data data :p dropout})
     (sym/fully-connected "fc-finetune" {:data data :num-hidden num-classes})
     (sym/softmax-output "softmax" {:data data})))
 
@@ -72,7 +72,7 @@
   
    (def bert-base (m/load-checkpoint {:prefix model-path-prefix :epoch 0}))
 ;;; now that we have loaded the BERT model we need to attach an additional layer for classification which is a dense layer with 2 classes
-   (def model-sym (fine-tune-model (m/symbol bert-base) 2))
+   (def model-sym (fine-tune-model (m/symbol bert-base) {:num-classes 2 :dropout 0.1}))
    (def arg-params (m/arg-params bert-base))
    (def aux-params (m/aux-params bert-base))
 
@@ -158,21 +158,22 @@
    (def num-epoch 1)
    (def processed-datas (mapv #(pre-processing (context/default-context) idx->token token->idx %)
                               data-train-raw))
-
-   (doseq [epoch-num (range num-epoch)]
-     (let [counter (atom 0)]
-       (doseq [batch-data processed-datas]
-         (when (and (pos? @counter)
-                    (zero? (mod @counter 20)))
-           (println "Working on " @counter " of " train-count " acc: " (eval-metric/get metric)))
-         (-> model
-             (m/forward {:data (:input-batch batch-data)})
-             (m/update-metric metric [(:label batch-data)])
-             (m/backward)
-             (m/update))
-         (swap! counter inc))
-       (println "result for epoch " epoch-num " is " (eval-metric/get-and-reset metric))))
+   (def batch-size 1)
    )
+
+    (doseq [epoch-num (range num-epoch)]
+      (let [counter (atom 0)]
+        (doseq [batch-data (shuffle processed-datas)]
+          (-> model
+              (m/forward {:data (:input-batch batch-data)})
+              (m/update-metric metric [(:label batch-data)])
+              (m/backward)
+              (m/update))
+          (swap! counter inc)
+          (when (and (pos? @counter)
+                     (zero? (mod @counter batch-size)))
+           (println "Working on " @counter " of " train-count " acc: " (eval-metric/get metric))))
+       (println "result for epoch " epoch-num " is " (eval-metric/get-and-reset metric))))
 
 
  #_(m/save-checkpoint model {:prefix "fine-tune-sentence-bert" :epoch 0 :save-opt-states true})
