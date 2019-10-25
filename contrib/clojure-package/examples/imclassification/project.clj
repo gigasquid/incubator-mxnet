@@ -21,4 +21,6 @@
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.apache.mxnet.contrib.clojure/clojure-mxnet "1.6.0-SNAPSHOT"]]
   :pedantic? :skip
-  :main imclassification.train-mnist)
+  :main imclassification.train-mnist
+  :repositories [["download-staging" {:url "https://repository.apache.org/content/repositories/staging"                  :snapshots true
+                                    :update :always}]])
