@@ -41,7 +41,15 @@
             [lein-cljfmt "0.5.7"]]
   :codox {:namespaces [#"^org\.apache\.clojure-mxnet\.(?!gen).*"]}
   :aot [dev.generator]
-  :repositories [["staging" {:url "https://repository.apache.org/content/repositories/staging"                  :snapshots true
-                             :update :always}]
+  :deploy-repositories [["staging" {:sign-releases true
+                                    :url "https://repository.apache.org/service/local/staging/deploy/maven2"
+                                    :creds :gpg
+                                    :signing {:gpg-key "your key"} ;; this can be email of key-id
+                                    :snapshots true
+                                    :checksum :fail
+                                    :update :always
+                                    :releases {:checksum :fail :update :always}}]]
+  :repositories [["download-staging" {:url "https://repository.apache.org/content/repositories/staging"                  :snapshots true
+                                    :update :always}]
                  ["snapshots" {:url "https://repository.apache.org/content/repositories/snapshots"               :snapshots true
-                               :update :always}]])
+                                      :update :always}]])
