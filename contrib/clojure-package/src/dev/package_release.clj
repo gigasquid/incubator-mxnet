@@ -58,7 +58,7 @@
 (defn run-commands
   "Run shell commands and report exit and out"
   ([commands text]
-   (commands text nil))
+   (run-commands commands text nil))
   ([commands text dir]
    (do
      (println "=====================  " text  "  =====================")
@@ -75,14 +75,6 @@
          (println err)
          (flush))
        (zero? exit)))))
-
-(defn reset-project-files
-  "Resets the projects files back to the original saved version"
-  []
-  (do
-    (sh "cp" "project.clj" "new-project-clj")
-    (sh "cp" "project.clj.bak" "project.clj")
-    (sh "cp" "examples/imclassification/project.clj.bak" "examples/imclassification/project.clj")))
 
 (defn run-tests-and-install
   "With the project file in place, use lein to
@@ -145,80 +137,41 @@
                     "Running Image Classification Example"
                     "examples/imclassification"))))
 
+(defn print-deploy-instructions []
+  (do
+    (println "**************************")
+    (println "*****READY FOR DEPLOY*****")
+    (println "**************************")
+    (println "Please validate that logs are all correct and the jar looks good.")
+    (print "Then run the following command to push the jar to apache staging:")
+    (println "   lein deploy :staging    ")
+    (flush)))
 
 (defn run-build [args]
   (let [[build-type release-number apache-gpg-key] args
         release-args {:build-type (keyword build-type)
                       :release-number release-number
                       :apache-gpg-key apache-gpg-key}]
-    
+
     (if (s/valid? ::release-args release-args)
-      (try
-        (do
-          (test-installed-jar build-type release-number)
-          (System/exit 0)
-          )
-        #_(do
-            (make-new-project-file {:build-type :osx-cpu
-                                    :release-number "1.5.1"
-                                    :apache-gpg-key "cmeier@apache.org"} )
-            (run-tests-and-install)
-            (System/exit 0)
-            )
-        (finally (reset-project-files)))
+      (do
+        (make-new-project-file {:build-type :osx-cpu
+                                :release-number "1.5.1"
+                                :apache-gpg-key "cmeier@apache.org"} )
+        (run-tests-and-install)
+        (test-installed-jar build-type release-number)
+        (run-commands ["scripts/setup_deploy_env.sh"] "Setting up display for deploy")
+        (print-deploy-instructions)
+        (System/exit 0))
       (do
         (println "Error with Args" release-args)
         (s/explain ::release-args release-args))
       )))
 
 (defn -main [& args]
-  (run-build args)
-)
-
+  (run-build args))
 
 (comment
+ (run-commands ["./scripts/setup_deploy_env.sh"] "Setting up display for deploy")
 
-
-
-  (let [build-type "osx-cpu"
-        release-number "1.5.1"
-        project-data (read-string (slurp "./examples/imclassification/project.clj"))
-        project-header (into [] (take 3 project-data))
-        project-rest-map (->> project-data
-                              (drop 3)
-                              (apply hash-map))
-        new-dependencies (->> (:dependencies project-rest-map)
-                              (remove #(string/includes? % "org.apache.mxnet"))
-                              (into [[(symbol (str "org.apache.mxnet.contrib.clojure/clojure-mxnet-" build-type)) release-number]]))
-        new-project-rest-map     (-> project-rest-map
-                                     (assoc :dependencies new-dependencies))]
-    new-project-rest-map
-    (do
-      (as-> (into [] new-project-rest-map) p
-        (into project-header (mapcat identity p))
-        (apply list p)
-        #_(with-out-str (clojure.pprint/pprint p))
-        #_(str dev.generator/license p)
-        #_(spit "./examples/imclassification/new-project.clj" p))
-      #_(run-commands ["lein" "run"]
-                    "Running Image Classification Example"
-                    "examples/imclassification")))
-
-  (run-build ["osx-cpu" "1.5.1" "cmeier@apache.org"])
-  
-  (let [m2-path (str (System/getProperty "user.home")
-                 "/.m2/repository/org/apache/mxnet/contrib/clojure/clojure-mxnet")
-        files-to-be-cleared (:out (sh "ls" m2-path))]
-    files-to-be-cleared)
-
-  (sh "cd" "examples")
-  (sh "lein" "run" :dir "examples/imclassification")
-  (sh "pwd")
-
-  (sh "ls" "~")
-
-
-
-"[[org.apache.mxnet.contrib.clojure/clojure-mxnet-osx-cpu \"1.5.1\"]]"
-  
   )
