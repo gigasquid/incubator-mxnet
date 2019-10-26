@@ -12,6 +12,8 @@
 (s/def ::release-args (s/keys :req-un [::build-type ::release-number
                                        ::apache-gpg-key]))
 
+(s/def ::validate-args (s/keys :req-un [::build-type ::release-number]))
+
 (def scala-jar-name
   {:linux-cpu "org.apache.mxnet/mxnet-full_2.11-linux-x86_64-cpu"
    :linux-gpu "org.apache.mxnet/mxnet-full_2.11-linux-x86_64-gpu"
@@ -99,23 +101,27 @@
   "This will move maven downloads of the release to test the
   download of the deployed jar from staging"
   [build-type release-number]
-  (let [m2-path (str (System/getProperty "user.home")
+  (let [mv-id (str release-number "-" (java.util.UUID/randomUUID) "-bak")
+        m2-path (str (System/getProperty "user.home")
                      "/.m2/repository/org/apache/mxnet/contrib/clojure/clojure-mxnet"
-                     "-" build-type "/"
-                     release-number)
+                     "-" build-type)
         files-to-be-cleared (:out (sh "ls" m2-path))]
-    (when files-to-be-cleared
+    (when-not (string/blank? files-to-be-cleared)
       (println "Installed m2 jars found")
       (print files-to-be-cleared)
-      (println "Do you want to mv the the m2 paths of " m2-path "to" (str m2-path "-bak") "?")
+      (println "Do you want to mv the dir " release-number " in " m2-path "to" mv-id)
       (println "Type \"yes\" to confirm: ")
       (flush)
       (let [answer (read-line)]
         (if (= "yes" answer)
-          (println (sh "mv" m2-path (str m2-path "-bak")))
+          (println (sh "mv" release-number mv-id :dir m2-path))
           (println "Not moving"))))))
 
-(defn test-installed-jar [build-type release-number]
+
+(defn test-installed-jar
+  "Tests the example with a jar locally if in maven
+  or downloads from the apache repo if needed"
+  [build-type release-number]
   (let [project-data (read-string (slurp "./examples/imclassification/project.clj"))
         project-header (into [] (take 3 project-data))
         project-rest-map (->> project-data
@@ -133,9 +139,13 @@
         (with-out-str (clojure.pprint/pprint p))
         (str dev.generator/license p)
         (spit "./examples/imclassification/project.clj" p))
-      (run-commands ["lein" "run"]
+      (run-commands ["lein" "run" ":cpu"]
                     "Running Image Classification Example"
-                    "examples/imclassification"))))
+                    "examples/imclassification")
+      (when (= :linux-gpu build-type)
+        (run-commands ["lein" "run" ":gpu"]
+                      "Running Image Classification Example"
+                      "examples/imclassification")))))
 
 (defn print-deploy-instructions []
   (do
@@ -148,8 +158,15 @@
     (println "^^^^^^^^^^^^^^^^^^^^^^^^^^^^   \n\n\n\n")
     (flush)))
 
+(defn print-test-deploy-conf []
+  (do
+    (println "**************************")
+    (println "*****SUCCESS!!!*****")
+    (println "**************************")
+    (flush)))
+
 (defn run-build [args]
-  (let [[build-type release-number apache-gpg-key] args
+  (let [[_ build-type release-number apache-gpg-key] args
         release-args {:build-type (keyword build-type)
                       :release-number release-number
                       :apache-gpg-key apache-gpg-key}]
@@ -166,13 +183,38 @@
         (System/exit 0))
       (do
         (println "Error with Args" release-args)
-        (s/explain ::release-args release-args))
-      )))
+        (s/explain ::release-args release-args)))))
+
+(defn validate-deploy [args]
+  (let [[_ build-type release-number] args
+        validate-args {:build-type (keyword build-type)
+                      :release-number release-number}]
+
+    (if (s/valid? ::validate-args validate-args)
+      (do
+        (clean-m2-release build-type release-number)
+        (test-installed-jar build-type release-number)
+        (print-test-deploy-conf)
+        (System/exit 0))
+      (do
+        (println "Error with Args" validate-args)
+        (s/explain ::validate-args validate-args)))))
 
 (defn -main [& args]
-  (run-build args))
+  (let [op (first args)]
+   (case op
+     ":run-build" (run-build args)
+     ":validate-deploy" (validate-deploy args)
+     (println "Invalid command! first arg must be :run-build or :validate-deploy"))))
 
 (comment
- (run-commands ["./scripts/setup_deploy_env.sh"] "Setting up display for deploy")
+  ;;; todo move it out into a seperate deploy project so it doesn't have to load up the generator every time
+  ;;; add scripts in the project to deploy verify 
+  
+  (run-commands ["./scripts/setup_deploy_env.sh"] "Setting up display for deploy")
+  (sh "rm" "test.txt")
+
+  lein run -m dev.package-release :run-build "osx-cpu" "1.5.1" "cmeier@apache.org"
+  lein run -m dev.package-release :validate-deploy "osx-cpu" "1.5.1"
 
   )
