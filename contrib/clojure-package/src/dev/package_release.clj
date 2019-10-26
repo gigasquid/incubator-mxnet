@@ -145,6 +145,7 @@
     (println "Please validate that logs are all correct and the jar looks good.")
     (print "Then run the following command to push the jar to apache staging:")
     (println "   lein deploy :staging    ")
+    (println "^^^^^^^^^^^^^^^^^^^^^^^^^^^^   \n\n\n\n")
     (flush)))
 
 (defn run-build [args]
