@@ -156,7 +156,8 @@
     (.mxListAllOpNames libinfo l)
     (->> l
          (util/buffer->vec)
-         (remove #(or (= "Custom" %) (re-matches #"^_.*" %))))))
+         (remove #(or (= "Custom" %) (and (re-matches #"^_.*" %)
+                                          (not (re-matches #"^_np_.*" %))))))))
 
 (defn- parse-arg-type [s]
   (let [[_ var-arg-type _ set-arg-type arg-spec _ type-req _ default-val] (re-find #"(([\w-\[\]\s]+)|\{([^}]+)\})\s*(\([^)]+\))?(,\s*(optional|required)(,\s*default=(.*))?)?" s)]
@@ -416,6 +417,9 @@
     (clojure.string/starts-with? fn-name "-random-")
     (remove-prefix "-random-" fn-name)
 
+    (clojure.string/starts-with? fn-name "-np-")
+    (remove-prefix "-" fn-name)
+
     (clojure.string/starts-with? fn-name "-sample-")
     (str (remove-prefix "-sample-" fn-name) "-like")
 
@@ -505,7 +509,7 @@
          ~@default-call))))
 
 (def gen-symbol-api-function
-  (make-gen-symbol-api-function {}))
+  (make-gen-symbol-api-function {:fn-name->fn-name fn-name->random-fn-name}))
 
 (def gen-symbol-random-api-function
   (make-gen-symbol-api-function {:fn-name->fn-name fn-name->random-fn-name}))
@@ -607,7 +611,7 @@
            ~default-call)))))
 
 (def gen-ndarray-api-function
-  (make-gen-ndarray-api-function {}))
+  (make-gen-ndarray-api-function {:fn-name->fn-name fn-name->random-fn-name}))
 
 (def gen-ndarray-random-api-function
   (make-gen-ndarray-api-function {:fn-name->fn-name fn-name->random-fn-name}))

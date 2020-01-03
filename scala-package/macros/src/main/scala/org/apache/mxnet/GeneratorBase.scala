@@ -52,9 +52,10 @@ private[mxnet] abstract class GeneratorBase {
                           isJava: Boolean = false): List[Func] = {
     val l = getBackEndFunctions(isSymbol, isJava)
     if (isContrib) {
-      l.filter(func => func.name.startsWith("_contrib_") || !func.name.startsWith("_"))
+      l.filter(func => func.name.startsWith("_contrib_") ||
+        func.name.startsWith("_np_") || !func.name.startsWith("_"))
     } else {
-      l.filterNot(_.name.startsWith("_"))
+      l.filter(func => func.name.startsWith("_np_") || !func.name.startsWith("_"))
     }
   }
 
@@ -70,9 +71,10 @@ private[mxnet] abstract class GeneratorBase {
 
     val l = getBackEndFunctions(isSymbol)
     val res = if (isContrib) {
-      l.filter(func => func.name.startsWith("_contrib_") || !func.name.startsWith("_"))
+      l.filter(func => func.name.startsWith("_contrib_") ||
+        func.name.startsWith("_np_") || !func.name.startsWith("_"))
     } else {
-      l.filterNot(_.name.startsWith("_"))
+      l.filter(func => func.name.startsWith("_np_") || !func.name.startsWith("_"))
     }
     res.filterNot(ele => notGenerated.contains(ele.name))
   }
